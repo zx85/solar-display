@@ -3,17 +3,19 @@
 // battery = % battery
 // grid = kW to/from the grid (negative is from)
 // usage = kW currently being consumed by the house
-// direction = whether the battery is charging ("^"), draining ("v") or level ("=")
+// timestamp = a timestamp representing last update from the sensor
 //{
 //  "solar": 0,
 //  "battery": 71,
 //  "grid": 0,
-//  "usage": 0.281,
-//  "direction": "="
+//  "usage": 0.281
+//  "timestamp": "20230418135055" 
 //}
+
 //
 // json stuff is here https://arduinojson.org/v6/doc/upgrade/
-/// todo: https://github.com/tzapu/WiFiManager
+// todo: https://github.com/tzapu/WiFiManager
+// TODO: https and Solis API
 
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
@@ -33,6 +35,7 @@
 
 #include "settings.h"
 
+// WiFi business
 WiFiClient client;
 int status = WL_IDLE_STATUS;
 
@@ -44,32 +47,10 @@ int backLight = D8;
 #define DIM 40
 #define MIN 10 
 
-int jsonend = 0;
-boolean startJson = false;
+// Dreadful iconography
+// ====================
 
-#define JSON_BUFF_DIMENSION 2500
-String text; 
-
-
-unsigned long lastConnectionTime = 10 * 60 * 1000;     // last time you connected to the server, in milliseconds
-const unsigned long postInterval =  1 * 60 * 1000;  // posting interval of 1 minute  (10L * 1000L; 10 seconds delay for testing)
-unsigned long lastButtonPoll = 10 * 60 * 1000;              // 200ms button poll
-const unsigned long buttonPollInterval = 200;
-unsigned long lastButtonPress = 10 * 60 * 1000; // last time a a button was pressed
-const unsigned long buttonInterval = 5 * 1000; // 5 seconds
-int oldButtonValue=0;
-
-// Button business
-int buttonValue = 0;
-
-// LCD brightness bit
-void lcdbright(int brightness) {
-    pinMode(backLight, OUTPUT);
-    analogWrite(backLight, brightness);
-}
-
-void lcdShow(String solar, String battery, String direction, String grid, String usage) {  
-  // rubbish solar symbol
+// rubbish solar symbol
 byte solarsprite[8] = {
   B00000, B10101, B01110, B11011, B11011, B01110, B10101, B00000
 };
@@ -90,77 +71,117 @@ byte downsprite[8] = {
   B00000, B00000, B00000, B00000, B10001, B11011, B01110, B00100
   };
 
+// JSON business
+int jsonend = 0;
+boolean startJson = false;
 
-lcd.createChar(0, solarsprite);
-lcd.createChar(1, gridsprite);
-lcd.createChar(2, mainssprite);
+#define JSON_BUFF_DIMENSION 2500
+String text; 
 
-int batteryInt=battery.toInt();
-byte batterysprite[8] = {
-  B01110, B01110, B11111, B11111, B11111, B11111, B11111, B11111
+// Loop variables business
+unsigned long lastConnectionTime = 10 * 60 * 1000;  // last time connected, in milliseconds
+const unsigned long postInterval =  1 * 30 * 1000;  // posting interval of 30 seconds
+unsigned long lastButtonPoll = 10 * 60 * 1000;      // last time button was checked in milliseconds
+const unsigned long buttonPollInterval = 200;       // 200ms button poll
+unsigned long lastButtonPress = 10 * 60 * 1000;     // last time a a button was pressed
+const unsigned long buttonInterval = 5 * 1000;      // 5 seconds screen brightening
+int oldButtonValue=0;
+int oldBatteryValue=0;
+String oldTimestampValue="";
+
+// Button business
+int buttonValue = 0;
+
+// LCD brightness function
+void lcdbright(int brightness) {
+    pinMode(backLight, OUTPUT);
+    analogWrite(backLight, brightness);
+}
+
+// Yer actural value displaying function
+void lcdShow(String solar, String battery, String grid, String usage) {  
+// create the battery icon first of all
+  int batteryInt=battery.toInt();
+  byte batterysprite[8] = {
+    B01110, B01110, B11111, B11111, B11111, B11111, B11111, B11111
   };
-if (batteryInt < 90) {batterysprite[1]= B01010;}
-if (batteryInt < 75) {batterysprite[2]= B10010;}
-if (batteryInt < 60) {batterysprite[3]= B10010;}
-if (batteryInt < 45) {batterysprite[4]= B10010;}
-if (batteryInt < 30) {batterysprite[5]= B10010;}
-if (batteryInt < 15) {batterysprite[6]= B10010;}
-
-lcd.createChar(3, batterysprite);
-lcd.createChar(4, upsprite);
-lcd.createChar(5, downsprite);
-
+  if (batteryInt < 90) {batterysprite[1]= B01010;}
+  if (batteryInt < 75) {batterysprite[2]= B10010;}
+  if (batteryInt < 60) {batterysprite[3]= B10010;}
+  if (batteryInt < 45) {batterysprite[4]= B10010;}
+  if (batteryInt < 30) {batterysprite[5]= B10010;}
+  if (batteryInt < 15) {batterysprite[6]= B10010;}
+  lcd.createChar(3, batterysprite);
+ // also need to turn the grid value into a float for later
   float gridFloat=grid.toFloat();
  // first row
   lcd.setCursor(0,0);
+// solar
   lcd.write(0);
   lcd.print(" ");
   lcd.print(solar.substring(0,4));
   lcd.print("kW      ");
+  Serial.print("Solar: ");
+  Serial.print(solar);
+  Serial.println(" kW");
 // battery
   lcd.setCursor(9,0);
   lcd.write(3);
-  if ( direction == "=") {
+  Serial.print("Battery: ");
+  if ( batteryInt == oldBatteryValue ) {
+    Serial.print("=");
     lcd.print("=");
   }
-  if (direction == "v") {
+  if ( batteryInt < oldBatteryValue) {
+    Serial.print("v");
     lcd.write(5);
   }
-  if (direction == "^") {
+  if ( batteryInt > oldBatteryValue) {
+    Serial.print("^");
     lcd.write(4);
   }
   lcd.setCursor(12,0);
   lcd.print(battery);
   lcd.print("%");
+  Serial.print(battery);
+  Serial.println("%");
 // Second row
   lcd.setCursor(0,1);
-// grid
+  // grid
   lcd.write(1);
+  Serial.print("Grid: ");
   if (gridFloat < 0) {
-    // incoming
+  // incoming
     lcd.write(5);
     lcd.print(grid.substring(1,4));
-    lcd.print("kW       ");
+    Serial.print("v");
+    Serial.print(grid.substring(1,4));
   }
   if (gridFloat > 0)  {
-    // outgoing
+  // outgoing
     lcd.write(4);
     lcd.print(grid.substring(0,4));
-    lcd.print("kW       ");
+    Serial.print("^");
+    Serial.print(grid.substring(0,4));
   }
   if (gridFloat == 0)  {
-    // outgoing
+  // none
     lcd.print(" ");
     lcd.print(grid.substring(0,4));
-    lcd.print("kW       ");
+    Serial.print(grid.substring(0,4));
   }
+  lcd.print("kW       ");
+  Serial.println(" kW");
 // usage
   lcd.setCursor(9,1);
   lcd.write(2);
   lcd.print(usage.substring(0,4));
   lcd.print("kW");
-  
-}
+  Serial.print("Usage: ");
+  Serial.print(usage.substring(0,4));
+  Serial.println(" kW");
+  oldBatteryValue = batteryInt;
+}  
 
 // print Wifi status
 void printWiFiStatus() {
@@ -203,17 +224,20 @@ void parseJson(const char * jsonString) {
   }
   String battery = jsonDoc["battery"];
   String solar = jsonDoc["solar"];
-  String direction = jsonDoc["direction"];
   String grid = jsonDoc["grid"];
   String usage = jsonDoc["usage"];
-  
-  Serial.println("solar is "+solar);
-  Serial.println("Battery is "+battery);
-  Serial.println("Direction is "+direction);  
-  Serial.println("Grid is "+grid);  
-  Serial.println("Usage is "+usage);  
- 
-  lcdShow(solar, battery, direction, grid, usage);
+  String timestamp = jsonDoc["timestamp"];
+
+  // no point in doing anything unless the value has changed
+  if ( timestamp != oldTimestampValue) {
+    Serial.print("Data updated at: ");
+    Serial.println(timestamp); 
+    lcdShow(solar, battery, grid, usage);
+    oldTimestampValue=oldTimestampValue;
+  }
+  else {
+    Serial.println("No new data yet");
+  }
 }
 
 // to request data from OWM
@@ -221,6 +245,7 @@ void makehttpRequest() {
   // close any connection before send a new request to allow client make connection to server
   client.stop();
 
+  Serial.println("Making the API call");
   // if there's a successful connection:
   if (client.connect(solarserver, 80)) {
     // Serial.println("connecting...");
@@ -297,6 +322,12 @@ void setup() {
   delay(1000); // wait for a second to let Serial connect
 
   // start the LCD business
+  lcd.createChar(0, solarsprite);
+  lcd.createChar(1, gridsprite);
+  lcd.createChar(2, mainssprite);
+  lcd.createChar(4, upsprite);
+  lcd.createChar(5, downsprite);
+
   lcd.begin(16, 2);  
   lcd.clear();
   lcd.setCursor(0, 0);
