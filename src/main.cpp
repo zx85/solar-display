@@ -233,7 +233,7 @@ void parseJson(const char * jsonString) {
     Serial.print("Data updated at: ");
     Serial.println(timestamp); 
     lcdShow(solar, battery, grid, usage);
-    oldTimestampValue=oldTimestampValue;
+    oldTimestampValue=timestamp;
   }
   else {
     Serial.println("No new data yet");
