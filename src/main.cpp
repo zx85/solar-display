@@ -106,11 +106,11 @@ void lcdShow(String solar, String battery, String grid, String usage) {
     B01110, B01110, B11111, B11111, B11111, B11111, B11111, B11111
   };
   if (batteryInt < 90) {batterysprite[1]= B01010;}
-  if (batteryInt < 75) {batterysprite[2]= B10010;}
-  if (batteryInt < 60) {batterysprite[3]= B10010;}
-  if (batteryInt < 45) {batterysprite[4]= B10010;}
-  if (batteryInt < 30) {batterysprite[5]= B10010;}
-  if (batteryInt < 15) {batterysprite[6]= B10010;}
+  if (batteryInt < 75) {batterysprite[2]= B10001;}
+  if (batteryInt < 60) {batterysprite[3]= B10001;}
+  if (batteryInt < 45) {batterysprite[4]= B10001;}
+  if (batteryInt < 30) {batterysprite[5]= B10001;}
+  if (batteryInt < 15) {batterysprite[6]= B10001;}
   lcd.createChar(3, batterysprite);
  // also need to turn the grid value into a float for later
   float gridFloat=grid.toFloat();
