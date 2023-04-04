@@ -4,10 +4,10 @@ To make this work, a file called `settings.h` should be created in here, contain
 the folllowing definitions (and substituting your own values)
 
 ```
-// char ssid[] = "YOURSSID";        
-// char pass[] = "YOURWIFIPASSWORD"; 
-// const char solarserver[] = "WEBSERVERIPADDRESS";
-// const char solarpath[] = "/PATH/TO/FILE.json";
+char ssid[] = "YOURSSID";        
+char pass[] = "YOURWIFIPASSWORD"; 
+const char solarserver[] = "WEBSERVERIPADDRESS";
+const char solarpath[] = "/PATH/TO/FILE.json";
 ```
 
 Note: no need to include http:// in the solarserver address
