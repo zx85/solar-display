@@ -14,30 +14,29 @@
 
 //
 // json stuff is here https://arduinojson.org/v6/doc/upgrade/
-// todo: https://github.com/tzapu/WiFiManager
-// TODO: https and Solis API
+// TODO: Solis API
 
 #include <Arduino.h>
-#include <ESP8266WiFi.h>
-#include <WiFiClient.h>
-#include <ArduinoJson.h>
+#include "LittleFS.h"
+#include "WiFiManager.h"
+#include "webServer.h"
+#include "updater.h"
+#include "fetch.h"
+#include "configManager.h"
+#include "timeSync.h"
 #include <LiquidCrystal.h>
+#include <ArduinoJson.h>
 
 // set up the important globulars
 // put the following in a file in include called settings.h
-// (note: only works on htt at the moment)
-// TODO: make it work with the Solis API with https magnificence
-//
-// char ssid[] = "YOURSSID";        
-// char pass[] = "YOURWIFIPASSWORD"; 
-// const char solarserver[] = "WEBSERVERIPADDRESS";
-// const char solarpath[] = "/PATH/TO/FILE.json";
+// const char solarURL[] = "SOLIS_API_URL";
+// const char solisKey[] = "YOUR_SOLIS_KEY";
+// const char solisSecret[] = "YOUR_SOLIS_SECRET";
+// const char solisId[] = "YOUR_SOLIS_SYSTEM_ID";
+// const char solisSn[] = "YOUR_INVERTER_SERIAL_NUMBER";
+// TODO: make it work properly with Solis API
 
 #include "settings.h"
-
-// WiFi business
-WiFiClient client;
-int status = WL_IDLE_STATUS;
 
 // LCD business
 LiquidCrystal lcd(D1, D2, D4, D5, D6, D7);        // select the pins used on the LCD panel
@@ -78,19 +77,22 @@ boolean startJson = false;
 #define JSON_BUFF_DIMENSION 2500
 String text; 
 
-// Loop variables business
-unsigned long lastConnectionTime = 10 * 60 * 1000;  // last time connected, in milliseconds
-const unsigned long postInterval =  1 * 30 * 1000;  // posting interval of 30 seconds
-unsigned long lastButtonPoll = 10 * 60 * 1000;      // last time button was checked in milliseconds
-const unsigned long buttonPollInterval = 200;       // 200ms button poll
-unsigned long lastButtonPress = 10 * 60 * 1000;     // last time a a button was pressed
-const unsigned long buttonInterval = 5 * 1000;      // 5 seconds screen brightening
-int oldButtonValue=0;
 int oldBatteryValue=0;
 String oldTimestampValue="";
 
 // Button business
 int buttonValue = 0;
+
+// task definitions
+struct task
+{    
+    unsigned long rate;
+    unsigned long previous;
+};
+
+task connectWeb = { .rate = 60000, .previous = 0 };
+task buttonPoll = { .rate = 200, .previous = 0 };
+task buttonPress = { .rate = 5000, .previous = 0 };
 
 // LCD brightness function
 void lcdbright(int brightness) {
@@ -183,32 +185,6 @@ void lcdShow(String solar, String battery, String grid, String usage) {
   oldBatteryValue = batteryInt;
 }  
 
-// print Wifi status
-void printWiFiStatus() {
-  // print the SSID of the network you're attached to:
-  Serial.print("SSID: ");
-  Serial.println(WiFi.SSID());
-
-  // print your WiFi shield's IP address:
-  IPAddress ip = WiFi.localIP();
-  Serial.print("IP Address: ");
-  Serial.println(ip);
-  lcdbright(MED);
-  lcd.clear();
-  lcd.setCursor(0,0);
-  lcd.print("Connected - IP:");
-  lcd.setCursor(0,1);
-  lcd.print(ip);
-  // print the received signal strength:
-  long rssi = WiFi.RSSI();
-  Serial.print("signal strength (RSSI):");
-  Serial.print(rssi);
-  Serial.println(" dBm");
-  delay(3000);
-  lcd.clear();
-  lcdbright(DIM);
-}
-
 //to parse json data recieved from OWM
 void parseJson(const char * jsonString) {
   //StaticJsonBuffer<4000> jsonBuffer;
@@ -240,86 +216,18 @@ void parseJson(const char * jsonString) {
   }
 }
 
-// to request data from OWM
-void makehttpRequest() {
-  // close any connection before send a new request to allow client make connection to server
-  client.stop();
 
-  Serial.println("Making the API call");
-  // if there's a successful connection:
-  if (client.connect(solarserver, 80)) {
-    // Serial.println("connecting...");
-    // send the HTTP PUT request:
-    client.print("GET ");
-    client.print(solarpath);
-    client.println(" HTTP/1.1");
-    client.println("Host: 192.168.75.4");
-    client.println("User-Agent: ArduinoWiFi/1.1");
-    client.println("Connection: close");
-    client.println();
-    
-    unsigned long timeout = millis();
-    while (client.available() == 0) {
-      if (millis() - timeout > 5000) {
-        Serial.println(">>> Client Timeout !");
-        client.stop();
-        return;
-      }
-    }
-    
-    char c = 0;
-    while (client.available()) {
-      c = client.read();
-      // since json contains equal number of open and close curly brackets, this means we can determine when a json is completely received  by counting
-      // the open and close occurences,
-      //     Serial.print(c);
-      if (c == '{') {
-        startJson = true;         // set startJson true to indicate json message has started
-        jsonend++;
-      }
-      if (c == '}') {
-        jsonend--;
-      }
-      if (startJson == true) {
-        text += c;
-      }
-      // if jsonend = 0 then we have have received equal number of curly braces 
-      if (jsonend == 0 && startJson == true) {
-        parseJson(text.c_str());  // parse c string text in parseJson function
-        text = "";                // clear text string for the next time
-        startJson = false;        // set startJson to false to indicate that a new message has not yet started
-      }
-    delay(1); // random delay just because
-    }
-  }
-  else {
-    // if no connction was made:
-    Serial.println("connection failed");
-    return;
-  }
-}
-
-void connectWiFi() {
-  int cursorPosition=0;
-  lcd.print(F("   Connecting"));  
-  Serial.println(F("Setup starting"));
-  WiFi.begin(ssid,pass);
-  Serial.println("connecting");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-    lcd.setCursor(cursorPosition,2); 
-    lcd.print(".");
-    cursorPosition++;
-  }
-  Serial.println("WiFi Connected");
-}
 
 
 void setup() {
   
   Serial.begin(115200);
   delay(1000); // wait for a second to let Serial connect
+  LittleFS.begin();
+  GUI.begin();
+  configManager.begin();
+  WiFiManager.begin(configManager.data.projectName);
+  timeSync.begin();
 
   // start the LCD business
   lcd.createChar(0, solarsprite);
@@ -333,42 +241,45 @@ void setup() {
   lcd.setCursor(0, 0);
   lcdbright(DIM);
   
-  connectWiFi();
-  printWiFiStatus();
+
+
 }
 
 
 void loop() {
 // check for button press 
-if (millis() - lastButtonPoll > buttonPollInterval) {
-  lastButtonPoll = millis();
-  buttonValue = analogRead(A0); // get the button value
-  if (buttonValue == 1024) {
-    if (millis() - lastButtonPress > buttonInterval) {
+
+  if (buttonPoll.previous==0 || (millis() - buttonPoll.previous > buttonPoll.rate )) {
+    buttonPoll.previous = millis();
+    buttonValue = analogRead(A0); // get the button value
+    if (buttonValue == 1024) {
+        if (buttonPress.previous==0 || (millis() - buttonPress.previous > buttonPress.rate )) {
 // reset everything
-    lcdbright(DIM);
+      lcdbright(DIM);
+      }
+      }
+    else {
+      buttonPress.previous=millis();
     }
+    if ((buttonValue < 1024) && (buttonValue > 900)) {
+      lcdbright(MED);      
     }
-  else {
-    lastButtonPress=millis();
   }
-  if ((buttonValue < 1024) && (buttonValue > 900)) {
-    lcdbright(MED);      
+
+// Do the polling of the website business
+  if (connectWeb.previous==0 || (millis() - connectWeb.previous > connectWeb.rate )) {
+      Serial.print("Free heap: ");
+      Serial.println(ESP.getFreeHeap());
+      
+      fetch.GET(solarURL);
+
+      while (fetch.busy())  {
+            if (fetch.available())
+            {
+                Serial.write(fetch.read());           
+            }
+        }
+        fetch.clean();
+  connectWeb.previous = millis();
   }
-}
-
-if (millis() - lastConnectionTime > postInterval) {
-    // note the time that the connection was made:
-    lastConnectionTime = millis();
-    if (WiFi.status() != WL_CONNECTED) {
-      Serial.println("Reconecting WiFi");
-      connectWiFi();
-      printWiFiStatus();
-    }
-    makehttpRequest();
-
-oldButtonValue=buttonValue;
-
-}
-
 }

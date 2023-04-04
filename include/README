@@ -4,10 +4,12 @@ To make this work, a file called `settings.h` should be created in here, contain
 the folllowing definitions (and substituting your own values)
 
 ```
-char ssid[] = "YOURSSID";        
-char pass[] = "YOURWIFIPASSWORD"; 
-const char solarserver[] = "WEBSERVERIPADDRESS";
-const char solarpath[] = "/PATH/TO/FILE.json";
+const char solarURL[] = "SOLIS_API_URL";
+const char solisKey[] = "YOUR_SOLIS_KEY";
+const char solisSecret[] = "YOUR_SOLIS_SECRET";
+const char solisId[] = "YOUR_SOLIS_SYSTEM_ID";
+const char solisSn[] = "YOUR_INVERTER_SERIAL_NUMBER";
+
 ```
 
 Note: no need to include http:// in the solarserver address
