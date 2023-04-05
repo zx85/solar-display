@@ -242,6 +242,15 @@ void setup() {
   
   Serial.begin(115200);
   delay(1000); // wait for a second to let Serial connect
+  
+  lcd.begin(16, 2);  
+  lcdbright(MED);  
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Solar Display");
+  lcd.setCursor(0,1);
+  lcd.print("Connecting...");
+  
   LittleFS.begin();
   GUI.begin();
   configManager.begin();
@@ -255,12 +264,31 @@ void setup() {
   lcd.createChar(4, upsprite);
   lcd.createChar(5, downsprite);
 
-  lcd.begin(16, 2);  
   lcd.clear();
   lcd.setCursor(0, 0);
   lcdbright(DIM);
   
+  Serial.print("SSID: ");
+  Serial.println(WiFi.SSID());
 
+  // print your WiFi shield's IP address:
+  IPAddress ip = WiFi.localIP();
+  Serial.print("IP Address: ");
+  Serial.println(ip);
+  lcdbright(MED);
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Connected - SSID:");
+  lcd.setCursor(0,1);
+  lcd.print(WiFi.SSID());
+  delay(2000);
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Connected - IP:");
+  lcd.setCursor(0,1);
+  lcd.print(ip);
+  delay(2000);
+ 
 
 }
 
