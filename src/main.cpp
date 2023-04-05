@@ -13,8 +13,26 @@
 //}
 
 //
-// json stuff is here https://arduinojson.org/v6/doc/upgrade/
-// TODO: Solis API
+// json conversion 5 to 6 stuff I used is here https://arduinojson.org/v6/doc/upgrade/
+// 
+// TODO: Solis API - from https://solis-service.solisinverters.com/helpdesk/attachments/2043393248854
+// No small feat
+// 
+// Python version:
+// Body = '{"pageSize":100,  "id": "xxx", "sn": "yyy" }'
+// Content_MD5 = base64.b64encode(hashlib.md5(Body.encode('utf-8')).digest()).decode('utf-8')
+// encryptStr = (VERB + "\n"
+//    + Content_MD5 + "\n"
+//    + Content_Type + "\n"
+//    + Date + "\n"
+//    + CanonicalizedResource)
+// h = hmac.new(secretKey, msg=encryptStr.encode('utf-8'), digestmod=hashlib.sha1)
+// Sign = base64.b64encode(h.digest())
+// Authorization = "API " + KeyId + ":" + Sign.decode('utf-8')
+//
+// Potential References: https://github.com/tzikis/ArduinoMD5
+// Cryptosuite (for SHA1)
+// bas64 (for base64encode)
 
 #include <Arduino.h>
 #include "LittleFS.h"
@@ -26,6 +44,7 @@
 #include "timeSync.h"
 #include <LiquidCrystal.h>
 #include <ArduinoJson.h>
+#include <TimeLib.h>
 
 // set up the important globulars
 // put the following in a file in include called settings.h
@@ -273,6 +292,13 @@ void loop() {
 
 // Do the polling of the website business
   if (connectWeb.previous==0 || (millis() - connectWeb.previous > connectWeb.rate )) {
+      time_t curTime=time(nullptr);
+      Serial.print ("Time is: ");
+      char curTimestamp [30];
+      sprintf(curTimestamp, "%s, %01d %s %04d %02d:%02d:%02d %s",
+               dayShortStr(weekday(curTime)), day(curTime), monthShortStr(month(curTime)),
+              year(curTime), hour(curTime), minute(curTime), second(curTime), "GMT");
+      Serial.println(curTimestamp);
       Serial.print("Free heap: ");
       Serial.println(ESP.getFreeHeap());
       
