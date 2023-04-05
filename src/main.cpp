@@ -90,7 +90,7 @@ struct task
     unsigned long previous;
 };
 
-task connectWeb = { .rate = 60000, .previous = 0 };
+task connectWeb = { .rate = 30000, .previous = 0 };
 task buttonPoll = { .rate = 200, .previous = 0 };
 task buttonPress = { .rate = 5000, .previous = 0 };
 
@@ -247,8 +247,13 @@ void setup() {
 
 
 void loop() {
-// check for button press 
 
+// Do the framework business
+    WiFiManager.loop();
+    updater.loop();
+    configManager.loop();
+
+// check for button press 
   if (buttonPoll.previous==0 || (millis() - buttonPoll.previous > buttonPoll.rate )) {
     buttonPoll.previous = millis();
     buttonValue = analogRead(A0); // get the button value
@@ -271,15 +276,24 @@ void loop() {
       Serial.print("Free heap: ");
       Serial.println(ESP.getFreeHeap());
       
-      fetch.GET(solarURL);
+      String response = "";
 
+      fetch.GET(solarURL);
+      
       while (fetch.busy())  {
             if (fetch.available())
             {
-                Serial.write(fetch.read());           
+                response = fetch.readString();
             }
         }
         fetch.clean();
+
+   if (response != "" ) {
+     Serial.println(response);
+     parseJson(response.c_str());
+   }           
+
+
   connectWeb.previous = millis();
   }
 }
