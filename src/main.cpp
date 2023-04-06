@@ -114,6 +114,7 @@ void lcdShow(String solar, String battery, String grid, String usage) {
   lcd.createChar(3, batterysprite);
  // also need to turn the grid value into a float for later
   float gridFloat=grid.toFloat();
+  lcd.clear();
  // first row
   lcd.setCursor(0,0);
 // solar
