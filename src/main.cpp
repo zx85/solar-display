@@ -70,7 +70,7 @@ int backLight = D8;
 
 // rubbish solar symbol
 byte solarsprite[8] = {
-  B00000, B10101, B01110, B11011, B11011, B01110, B10101, B00000
+  B00000, B10101, B01110, B11111, B11111, B01110, B10101, B00000
 };
   // rubbish lightning symbol
 byte gridsprite[8] = {
@@ -136,6 +136,7 @@ void lcdShow(String solar, String battery, String grid, String usage) {
  // also need to turn the grid value into a float for later
   float gridFloat=grid.toFloat();
  // first row
+  lcd.clear();
   lcd.setCursor(0,0);
 // solar
   lcd.write(0);
